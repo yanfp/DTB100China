@@ -9,20 +9,20 @@ getWells<-function()
   
   #wellsSum<-read.table("F:\\China\\WellsData\\wells_cn.txt",header = TRUE,sep="\t",quote = "",stringsAsFactors = FALSE)
   (nsum=nrow(wellsSum))
-  wells<-wellsSum[!is.na(wellsSum$depth),] #提取具有深度的记录
-  (nvalid=nrow(wells)) #计算基岩深度数据条数
-  nrow(wells[wells$depth==0,])#深度为0
+  wells<-wellsSum[!is.na(wellsSum$depth),] #extract rows with depth
+  (nvalid=nrow(wells)) #the row number of observations
+  nrow(wells[wells$depth==0,])#deptp==0
   
-  #深度和钻孔倾角处理
-  wells$angle<-ifelse(wells$angle>45,wells$angle,90-wells$angle) #倾角取余处理
-  wells$angle<-ifelse(is.na(wells$angle),90,wells$angle) #倾角缺失处理
-  wells$depth<-wells$depth*sinpi(wells$angle/180) ##岩石深度需要乘以钻孔倾角
+  #depth & angle
+  wells$angle<-ifelse(wells$angle>45,wells$angle,90-wells$angle) 
+  wells$angle<-ifelse(is.na(wells$angle),90,wells$angle) 
+  wells$depth<-wells$depth*sinpi(wells$angle/180) 
   
-  ## 将deeper than的数据加入训练集中
+  ## deeper than observations
   wellsDeeper<-wellsSum[!is.na(wellsSum$deeper.than),]
-  wellsDeeper$angle<-ifelse(is.na(wellsDeeper$angle),90,wellsDeeper$angle) #倾角缺失处理
+  wellsDeeper$angle<-ifelse(is.na(wellsDeeper$angle),90,wellsDeeper$angle)
   wellsDeeper$angle<-ifelse(wellsDeeper$angle>45,wellsDeeper$angle,90-wellsDeeper$angle)
-  wellsDeeper$depth<-wellsDeeper$deeper.than*sinpi(wellsDeeper$angle/180) ##岩石深度需要乘以钻孔倾角
+  wellsDeeper$depth<-wellsDeeper$deeper.than*sinpi(wellsDeeper$angle/180) 
   wellsDeeper<-wellsDeeper[wellsDeeper$depth>100,]
   
   
@@ -78,7 +78,6 @@ plot(grd,col=c("white","blue"))
 
 extractPointsFromShp<-function()
 {
-  #将中国边界线数据中的点提取出来放入pt.df中
   china.Boun1<-readOGR("F:\\China\\ChinaFile","chinaLine")
   nline=length(china.Boun1@lines)
   pt.df<-data.frame(x=NA,y=NA)
