@@ -11,7 +11,7 @@ memory.limit(size = 100*1024)
 load("F:/New/RData/rf.RData")
 load("F:/China/Final/blockList_1h.RData")
 
-### predict DTB for every 1¡ã ¡Á 1¡ã block
+### predict DTB for every 1Â¡Ã£ Â¡Ã 1Â¡Ã£ block
 predictFunForParallel<-function(bList)
 {
   library(randomForest)
@@ -58,7 +58,7 @@ predictFunForParallel<-function(bList)
     }
     covaDf[,l]<-ifelse(is.na(covaDf[,l]),ave,covaDf[,l])
     }
-    #### Óöµ½¿ÕÖµ£¬Ìø³ö
+  
     if(anyNA(covaDf))
     {
     return()
