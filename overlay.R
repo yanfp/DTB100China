@@ -21,15 +21,15 @@ overForModelling<-function()
   nrow(wells[wells$depth==0,])# row of observations where depth is 0.
   
   # the actual DTB is the product of depth and angle 
-  wells$angle<-ifelse(wells$angle>45,wells$angle,90-wells$angle) #倾角取余处理
-  wells$angle<-ifelse(is.na(wells$angle),90,wells$angle) #倾角缺失处理
-  wells$depth<-wells$depth*sinpi(wells$angle/180) ##岩石深度需要乘以钻孔倾角
+  wells$angle<-ifelse(wells$angle>45,wells$angle,90-wells$angle) 
+  wells$angle<-ifelse(is.na(wells$angle),90,wells$angle) 
+  wells$depth<-wells$depth*sinpi(wells$angle/180) 
   
   ## deeper than rows
   wellsDeeper<-wellsSum[!is.na(wellsSum$deeper.than),]
-  wellsDeeper$angle<-ifelse(is.na(wellsDeeper$angle),90,wellsDeeper$angle) #倾角缺失处理
+  wellsDeeper$angle<-ifelse(is.na(wellsDeeper$angle),90,wellsDeeper$angle)
   wellsDeeper$angle<-ifelse(wellsDeeper$angle>45,wellsDeeper$angle,90-wellsDeeper$angle)
-  wellsDeeper$depth<-wellsDeeper$deeper.than*sinpi(wellsDeeper$angle/180) ##岩石深度需要乘以钻孔倾角
+  wellsDeeper$depth<-wellsDeeper$deeper.than*sinpi(wellsDeeper$angle/180) 
   wellsDeeper<-wellsDeeper[wellsDeeper$depth>100,]
   
   wells<-rbind(wells,wellsDeeper)
