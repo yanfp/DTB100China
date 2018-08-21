@@ -14,6 +14,6 @@ def block(inPath,col,row,outPath):
             print(i,j)
             print(extend)
             arcpy.Clip_management(inPath,extend,outPath+"\\{0}_{1}.tif".format(73+i*xInt,54-(j+1)*yInt),"#","#","NONE")
-x=input("ÊäÈë¾­¶È·½Ïò¿éÊı£º")
-y=input("ÊäÈëÎ³¶È·½Ïò¿éÊı£º")
+x=input("number of block in longitude directionï¼š")
+y=input("number of block in latitute direction:")
 block("F:\\China\\Mask\\China_1k.tif",x,y,"F:\\China\\Mask\\1k")
