@@ -1,3 +1,4 @@
+#clip area of interest into every 1°×1° block
 
 import arcpy
 import os
