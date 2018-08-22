@@ -1,5 +1,7 @@
 # -*- coding: cp936 -*-
 # coding:utf-8
+
+# clip the covariates into every 1°×1° 
 import arcpy
 import os
 import gc
