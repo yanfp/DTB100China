@@ -1,109 +1,137 @@
 
-### apply spatial prediction using quantile regression forest
-
-library(rgdal)
-library(sp)
-library(quantregForest)
-
-rm(list = ls())
-gc()
-memory.limit(size = 50*1024)
-
-load("F:/New/RData/qrf.RData")
-load("F:/China/Final/blockList_1h.RData")
-
-### predict DTB for every 1бу б┴ 1бу block
-predictFunForParallel<-function(bList)
+###### predict using quantile regression forest ######
+######### block_name: 1буб┴ 1бу block name
+######################################################
+qrfPredict <- function(block_name)
 {
   library(quantregForest)
-  library(rgdal)
-  prj.str<-"+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-  lon=round(bList@bbox[1,1])
-  lat=round(bList@bbox[2,1])
-  blockName<-paste0(as.character(lon),"_",as.character(lat))
+  library(caret)
+  library(pkgmaker)
+  library(raster)
   
-  filePath<-"G:/qrf_1h"
-  fileList<-list.files(filePath)
-  if(!(paste0(blockName,".tif") %in% fileList))
+  ### if the block exists, return
+  out_path <- "G:/qrf/"
+  result_file <- paste0(out_path, "1/", block_name, ".tif")
+  if(file.exists(result_file))
+    return()
+  
+  cov_path <- "D:/DTB100/Covariates/"
+  prj_str <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+  China_mask <- raster("D:/DTB100/China_1w.tif")
+  block_path <- paste0(cov_path, block_name, "/")
+  
+  cov_file_list <- list.files(block_path)
+  std_block <- raster(paste0(block_path, "DEM.tif"))
+  ### if the block is out of China, return
+  block_mask <- crop(China_mask, std_block)
+  mask_values <- getValues(block_mask)
+  na_tab <- table(is.na(mask_values))
+  if(names(na_tab) == "TRUE" &  na_tab == length(mask_values))
   {
-    if((lon>=73 && lon<=100 && lat>=18 && lat<=54) | 1==1)
-    {
-    
-      blockPath<-paste0("F:/China/Covariates/BlockCovariates/",blockName)
-      blockCovariatesNameList<-list.files(blockPath)
-      covaDf<-data.frame()
-      for(i in blockCovariatesNameList)
-      {
-        strList<-strsplit(i,"[.]")
-        covaName<-strList[[1]][1]
-        
-        blockCovariates<-readGDAL(paste0(blockPath,"\\",i))
-        proj4string(blockCovariates)<-prj.str
-        ov.grid<-over(bList,blockCovariates)
-        colnames(ov.grid)<-covaName
-        if(ncol(covaDf)==0)
-        {
-          covaDf<-data.frame(no=1:nrow(ov.grid))
-        }
-        covaDf<-cbind(covaDf,ov.grid)
-      }
-    
-      covariateNum<-ncol(covaDf)-1
-      for(l in 2:(covariateNum+1))
-      {
-        ave<-mean(covaDf[,l],na.rm = TRUE)
-        if(is.nan(ave))
-        {
-          ave=0
-        }
-        covaDf[,l]<-ifelse(is.na(covaDf[,l]),ave,covaDf[,l])
-      }
-      
-      pre<-vector()
-      pre_part=vector()
-      rowIndex<-vector()
-      nr<-nrow(covaDf)
-      
-      n_part<-nr/100
-      
-      for(i in 1:100)
-      {
-        rowIndex=((i-1)*n_part+1):(i*n_part)
-        pre_part<-predict(qrf,covaDf[rowIndex,-1],what = c(0.1,0.5,0.9))
-        pre<-rbind(pre,pre_part)
-        gc()
-      }
-      if(n_part*100<nr)
-      {
-        rowIndex=(100*n_part+1):nr
-        pre_part<-predict(qrf,covaDf[rowIndex,-1],what = c(0.1,0.5,0.9))
-        pre<-rbind(pre,pre_part)
-      }
-      
-      pre<-ifelse(pre>=0,pre,0)
-      
-      bList@data<-data.frame(pred=(pre[,3]-pre[,1])/pre[,2])
-      
-      gc()
-      gc()
-      gc()
-    
-      if(!dir.exists(filePath))
-        dir.create(filePath)
-      name<-paste0(as.character(round(bList@bbox[1,1])),"_",as.character(round(bList@bbox[2,1])))
-      writeGDAL(bList,paste0(filePath,"/",as.character(name),".tif"))
+    return()
+  }
 
+  cov_data <- data.frame()
+  for(i in cov_file_list)
+  {
+    if(pkgmaker::file_extension(i) == "tif")
+    {
+      cov_name <- strsplit(i, "[.]")[[1]][1]
+      file_name <- paste0(block_path, i)
+      p <- raster(file_name)
+      proj4string(p) <- prj_str
+      
+      if(compareRaster(p, std_block, stopiffalse = FALSE) == FALSE)
+      {
+        p <- projectRaster(p, std_block, method = 'ngb')
+      }
+      cov <- getValues(p)
+      ### deal with NA in some cells
+      if(anyNA(cov))
+      {
+        med <- median(cov, na.rm = TRUE)
+        cov <- unlist(lapply(cov, FUN = function(x) {ifelse(is.na(x), med, x)}))
+      }
+      cov <- data.frame(X = cov)
+      colnames(cov) <- cov_name
+      
+      if(ncol(cov_data) == 0)
+        cov_data <- cov
+      else
+        cov_data <- cbind(cov_data, cov)
     }
   }
+  cov_data <- cov_data[, rownames(qrf$importance)]
+  
+  ### divide the raster to several part in predicting to avoid memory exceed
+  pred <- matrix(nrow = 0, ncol = 3)
+  n_div <- 100
+  n_cell <- nrow(cov_data)
+  n_part <- floor(n_cell / n_div)
+  for(i in 1:n_div)
+  {
+    part_pred <- vector()
+    if(i < n_div)
+    {
+      part_pred <- predict(qrf, newdata = cov_data[((i - 1) * n_part + 1):(i * n_part),], 
+                           what = c(0.1, 0.5, 0.9))
+    }
+    else
+    {
+      part_pred <- predict(qrf, newdata = cov_data[((i - 1) * n_part + 1):n_cell,], 
+                           what = c(0.1, 0.5, 0.9))
+    }
+    pred <- rbind(pred, part_pred)
+  }
+  
+  n_band <- ncol(pred)
+  for(i in 1:n_band)
+  {
+    band_path <- paste0(out_path, as.character(i), "/")
+    if(!dir.exists(band_path))
+    {
+      dir.create(band_path)
+    }
+  }
+  for(i in 1:n_band)
+  {
+    result_file_name <- paste0(out_path, as.character(i), "/", block_name, ".tif")
+    ret <- raster::setValues(std_block, pred[,i])
+    names(ret) <- cov_name
+    writeRaster(ret, filename = result_file_name)
+  }
+
+  print(block_name)
+  gc()
+  gc()
+  gc()
 }
 
-### parallel computing for predicting
-library(parallel)
-coresNum<-detectCores(logical = F)
-cl <- makeCluster(getOption("cl.cores", coresNum))
-clusterExport(cl,varlist="qrf")
-system.time({
-  res <- parLapply(cl, blockList,predictFunForParallel)
-})
-stopCluster(cl)
+block_list <- list.files("D:/DTB100/Covariates/")
+load("D:/DTB100/qrf.RData")
 
+#qrfPredict("117_40")
+
+parallelPredict <- function(block_list, n_cores = 4)
+{
+  ### using parallel computing
+  library(parallel)
+  if(.Platform$OS.type == "windows")
+  {
+    #cores_num<-detectCores(logical = F)
+    cores_num <- n_cores
+    cl <- makeCluster(getOption("cl.cores", cores_num))
+    clusterExport(cl,varlist="qrf")
+    
+    parLapply(cl, block_list, qrfPredict)
+    
+    stopCluster(cl)
+  }
+  else if(.Platform$OS.type == "unix")
+  {
+    core_num <- detectCores(logical = F)
+    mc <- getOption("mc.cores", core_num)
+    mclapply(block_list, xgPredict, mc.cores = mc)
+  }
+}
+#parallelPredict(block_list)

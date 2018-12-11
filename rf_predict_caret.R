@@ -1,5 +1,3 @@
-
-
 ##### predict using randomForest ######
 ### block_name: 1буб┴ 1бу block name
 ########################################
@@ -32,7 +30,7 @@ rfPredict <- function(block_name)
     return()
   }
   
-  cov_data <- data.frame()
+  cov_list <- list()
   for(i in cov_file_list)
   {
     if(pkgmaker::file_extension(i) == "tif")
@@ -52,24 +50,15 @@ rfPredict <- function(block_name)
       {
         med <- median(cov, na.rm = TRUE)
         cov <- unlist(lapply(cov, FUN = function(x) {ifelse(is.na(x), med, x)}))
+        p <- setValues(p, cov)
       }
-      
-      cov <- data.frame(X = cov)
-      colnames(cov) <- cov_name
-      
-      if(ncol(cov_data) == 0)
-        cov_data <- cov
-      else
-        cov_data <- cbind(cov_data, cov)
+      cov_list <- c(cov_list, p)
     }
   }
+  cov_stack <- stack(cov_list)
+
+  ret <- predict(cov_stack, rf)
   
-  cov_data <- cov_data[, rownames(rf$importance)]
-  
-  pred <- predict(rf, newdata = cov_data)
-  
-  ret <- raster::setValues(std_block, pred)
-  names(ret) <- cov_name
   writeRaster(ret, filename = result_file)
   
   print(block_name)
@@ -81,7 +70,7 @@ rfPredict <- function(block_name)
 block_list <- list.files("D:/DTB100/Covariates/")
 load("D:/DTB100/rf.RData")
 
-# system.time(rfPredict("117_40"))
+rfPredict("117_40")
 
 parallelPredict <- function(block_list)
 {
@@ -104,4 +93,3 @@ parallelPredict <- function(block_list)
     mclapply(block_list, xgPredict, mc.cores = mc)
   }
 }
-# parallelPredict(block_list)

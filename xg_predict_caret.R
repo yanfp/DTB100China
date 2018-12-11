@@ -1,17 +1,17 @@
 
 
-##### predict using randomForest ######
+##### predict using xgboost model ######
 ### block_name: 1буб┴ 1бу block name
 ########################################
-rfPredict <- function(block_name)
+xgPredict <- function(block_name)
 {
-  library(randomForest)
+  library(xgboost)
   library(caret)
   library(pkgmaker)
   library(raster)
   
   ### if the block exists, return
-  out_path <- "G:/rf/"
+  out_path <- "G:/xg2/"
   result_file <- paste0(out_path, block_name, ".tif")
   if(file.exists(result_file))
     return()
@@ -27,12 +27,12 @@ rfPredict <- function(block_name)
   block_mask <- crop(China_mask, std_block)
   mask_values <- getValues(block_mask)
   na_tab <- table(is.na(mask_values))
-  if(names(na_tab) == "TRUE" &  na_tab == length(mask_values))
+  if((names(na_tab) == "TRUE") &  (na_tab == length(mask_values)))
   {
     return()
   }
   
-  cov_data <- data.frame()
+  cov_list <- list()
   for(i in cov_file_list)
   {
     if(pkgmaker::file_extension(i) == "tif")
@@ -41,7 +41,6 @@ rfPredict <- function(block_name)
       file_name <- paste0(block_path, i)
       p <- raster(file_name)
       proj4string(p) <- prj_str
-      
       if(compareRaster(p, std_block, stopiffalse = FALSE) == FALSE)
       {
         p <- projectRaster(p, std_block, method = 'ngb')
@@ -52,24 +51,16 @@ rfPredict <- function(block_name)
       {
         med <- median(cov, na.rm = TRUE)
         cov <- unlist(lapply(cov, FUN = function(x) {ifelse(is.na(x), med, x)}))
+        p <- setValues(p, cov)
       }
-      
-      cov <- data.frame(X = cov)
-      colnames(cov) <- cov_name
-      
-      if(ncol(cov_data) == 0)
-        cov_data <- cov
-      else
-        cov_data <- cbind(cov_data, cov)
+      cov_list <- c(cov_list, p)
     }
   }
+  cov_stack <- stack(cov_list)
+
+  ret <- predict(cov_stack, rf)
   
-  cov_data <- cov_data[, rownames(rf$importance)]
-  
-  pred <- predict(rf, newdata = cov_data)
-  
-  ret <- raster::setValues(std_block, pred)
-  names(ret) <- cov_name
+  ### write to tif
   writeRaster(ret, filename = result_file)
   
   print(block_name)
@@ -79,9 +70,9 @@ rfPredict <- function(block_name)
 }
 
 block_list <- list.files("D:/DTB100/Covariates/")
-load("D:/DTB100/rf.RData")
+load("D:/DTB100/xg.RData")
 
-# system.time(rfPredict("117_40"))
+xgPredict("117_40")
 
 parallelPredict <- function(block_list)
 {
@@ -91,9 +82,9 @@ parallelPredict <- function(block_list)
   {
     cores_num<-detectCores(logical = F)
     cl <- makeCluster(getOption("cl.cores", cores_num))
-    clusterExport(cl,varlist="rf")
+    clusterExport(cl,varlist="xg")
     
-    parLapply(cl, block_list, rfPredict)
+    parLapply(cl, block_list, xgPredict)
     
     stopCluster(cl)
   }
@@ -104,4 +95,5 @@ parallelPredict <- function(block_list)
     mclapply(block_list, xgPredict, mc.cores = mc)
   }
 }
-# parallelPredict(block_list)
+#parallelPredict(block_list)
+
